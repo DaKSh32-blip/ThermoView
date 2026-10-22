@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="ThermoView.App/ThermoView.App.csproj" />
+  <Project Path="ThermoView.Core/ThermoView.Core.csproj" />
+  <Project Path="ThermoView.Tests/ThermoView.Tests.csproj" />
+</Solution>
