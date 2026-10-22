@@ -14,6 +14,10 @@ public class ThermalGrid
     public double ConvectionCoefficient { get; set; }  // NEW: h, 0 = no air cooling
     public List<Chip> Chips { get; } = new();          // NEW: chips on the board
 
+    // Spare "new sheet" we reuse every step instead of making a fresh one.
+    // Making a brand new array thousands of times a second wastes memory.
+    private double[,] _next;
+
     public ThermalGrid(int width, int height, double cellSize,
                        Material baseMaterial, double startTemp,
                        double thickness = 0.0016)       // NEW: 1.6mm = standard board
@@ -25,6 +29,7 @@ public class ThermalGrid
         AmbientTemp = startTemp;    // room starts at the same temp as the board
         Temperature = new double[width, height];
         Materials = new Material[width, height];
+        _next = new double[width, height];
 
         for (int x = 0; x < width; x++)
             for (int y = 0; y < height; y++)
@@ -75,7 +80,7 @@ public class ThermalGrid
 
     public void Step(double dt)
     {
-        var next = new double[Width, Height];
+        var next = _next;   // write into the spare sheet
         double dx2 = CellSize * CellSize;
         double cellArea = CellSize * CellSize;          // top surface of one square
         double cellVolume = cellArea * Thickness;
@@ -103,6 +108,9 @@ public class ThermalGrid
                 next[x, y] = me + spread + (powerIn - powerOut) * dt / heatCapacity;
             }
 
+        // Swap the two sheets: the new one becomes current,
+        // the old one becomes the spare for next time.
+        _next = Temperature;
         Temperature = next;
     }
 }
