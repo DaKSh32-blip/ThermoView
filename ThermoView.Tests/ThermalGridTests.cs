@@ -3,7 +3,7 @@ using Xunit;
 
 public class ThermalGridTests
 {
-    [Fact]  // [Fact] = "this is a test, run it"
+    [Fact]
     public void HotSpot_SpreadsToNeighbors()
     {
         // 5x5 copper plate, 1mm squares, everything at 20°C
@@ -20,7 +20,7 @@ public class ThermalGridTests
     public void Temperatures_NeverGoOutsideStartingRange()
     {
         // Run 1000 steps. If the time step were unsafe,
-        // temps would explode to crazy numbers and this fails.
+        // temps would explode and this fails.
         var grid = new ThermalGrid(10, 10, 0.001, Material.Copper, 20);
         grid.Temperature[5, 5] = 100;
         double dt = grid.MaxStableTimeStep();
@@ -43,6 +43,6 @@ public class ThermalGridTests
             grid.Step(dt);
 
         foreach (var t in grid.Temperature)
-            Assert.Equal(50, t, precision: 6);  // equal to 6 decimal places
+            Assert.Equal(50, t, precision: 6);
     }
 }

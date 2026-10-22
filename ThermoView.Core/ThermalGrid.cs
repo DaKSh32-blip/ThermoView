@@ -4,21 +4,28 @@ public class ThermalGrid
 {
     public int Width { get; }
     public int Height { get; }
-    public double CellSize { get; }   // size of one square, in meters
+    public double CellSize { get; }        // size of one square (m)
+    public double Thickness { get; }       // NEW: board thickness (m)
 
-    public double[,] Temperature { get; private set; }  // temp of every square (°C)
-    public Material[,] Materials { get; }               // what every square is made of
+    public double[,] Temperature { get; private set; }
+    public Material[,] Materials { get; }
+
+    public double AmbientTemp { get; set; }            // NEW: room air temp (°C)
+    public double ConvectionCoefficient { get; set; }  // NEW: h, 0 = no air cooling
+    public List<Chip> Chips { get; } = new();          // NEW: chips on the board
 
     public ThermalGrid(int width, int height, double cellSize,
-                       Material baseMaterial, double startTemp)
+                       Material baseMaterial, double startTemp,
+                       double thickness = 0.0016)       // NEW: 1.6mm = standard board
     {
         Width = width;
         Height = height;
         CellSize = cellSize;
+        Thickness = thickness;
+        AmbientTemp = startTemp;    // room starts at the same temp as the board
         Temperature = new double[width, height];
         Materials = new Material[width, height];
 
-        // fill every square with the starting temp and base material
         for (int x = 0; x < width; x++)
             for (int y = 0; y < height; y++)
             {
@@ -27,36 +34,73 @@ public class ThermalGrid
             }
     }
 
-    // The biggest time jump we can take without the math exploding.
-    // Too big a step = temperatures shoot to millions of degrees.
-    // Safe limit: step ≤ cellSize² / (4 × fastest diffusivity)
     public double MaxStableTimeStep()
     {
         double fastest = 0;
         foreach (var m in Materials)
             fastest = Math.Max(fastest, m.Diffusivity);
 
-        return 0.9 * CellSize * CellSize / (4 * fastest);  // 0.9 = safety margin
+        return 0.9 * CellSize * CellSize / (4 * fastest);
     }
 
-    // Move the simulation forward by dt seconds.
+    // NEW: the hottest square on the board (used for warnings later)
+    public double MaxTemperature()
+    {
+        double max = double.MinValue;
+        foreach (var t in Temperature)
+            max = Math.Max(max, t);
+        return max;
+    }
+
+    // NEW: insulated edges. If we ask for a square off the board,
+    // clamp to the nearest real square. So at the edge, the "missing
+    // neighbor" has the same temp as me, meaning no heat flows out the side.
+    private double TempAt(int x, int y)
+    {
+        x = Math.Clamp(x, 0, Width - 1);
+        y = Math.Clamp(y, 0, Height - 1);
+        return Temperature[x, y];
+    }
+
+    // NEW: how many watts are being pumped into square (x, y)?
+    // A chip's power is split evenly over all the squares it covers.
+    private double PowerAt(int x, int y)
+    {
+        double power = 0;
+        foreach (var chip in Chips)
+            if (chip.Covers(x, y))
+                power += chip.PowerWatts / chip.CellCount;
+        return power;
+    }
+
     public void Step(double dt)
     {
-        // Work on a COPY so every square uses the OLD temperatures.
-        var next = (double[,])Temperature.Clone();
+        var next = new double[Width, Height];
         double dx2 = CellSize * CellSize;
+        double cellArea = CellSize * CellSize;          // top surface of one square
+        double cellVolume = cellArea * Thickness;
 
-        // Skip the outer edge for now: edges stay fixed,
-        // like the board is clamped to a cold table.
-        for (int x = 1; x < Width - 1; x++)
-            for (int y = 1; y < Height - 1; y++)
+        // NEW: loop over EVERY square now, edges included
+        for (int x = 0; x < Width; x++)
+            for (int y = 0; y < Height; y++)
             {
                 double me = Temperature[x, y];
-                double neighbors = Temperature[x + 1, y] + Temperature[x - 1, y]
-                                 + Temperature[x, y + 1] + Temperature[x, y - 1];
-                double speed = Materials[x, y].Diffusivity * dt / dx2;
+                var mat = Materials[x, y];
 
-                next[x, y] = me + speed * (neighbors - 4 * me);
+                // 1) spread from neighbors (same as Part 1)
+                double neighbors = TempAt(x + 1, y) + TempAt(x - 1, y)
+                                 + TempAt(x, y + 1) + TempAt(x, y - 1);
+                double spread = mat.Diffusivity * dt / dx2 * (neighbors - 4 * me);
+
+                // 2) energy needed to raise this square by 1°C
+                double heatCapacity = mat.Density * mat.SpecificHeat * cellVolume;
+
+                // 3) heat IN from chips, heat OUT to the air
+                double powerIn = PowerAt(x, y);
+                double powerOut = ConvectionCoefficient * cellArea * (me - AmbientTemp);
+
+                // watts × seconds = joules, joules ÷ heatCapacity = °C change
+                next[x, y] = me + spread + (powerIn - powerOut) * dt / heatCapacity;
             }
 
         Temperature = next;
