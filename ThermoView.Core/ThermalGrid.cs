@@ -57,6 +57,34 @@ public class ThermalGrid
         return max;
     }
 
+    // Place a chip only if it fits on the board and doesn't sit on another chip.
+    // Returns false (and adds nothing) if the spot is invalid.
+    public bool TryAddChip(Chip chip)
+    {
+        bool fits = chip.Width > 0 && chip.Height > 0 &&
+                    chip.X >= 0 && chip.Y >= 0 &&
+                    chip.X + chip.Width <= Width &&
+                    chip.Y + chip.Height <= Height;
+        if (!fits) return false;
+
+        foreach (var other in Chips)
+            if (chip.Overlaps(other)) return false;
+
+        Chips.Add(chip);
+        return true;
+    }
+
+    // A chip's temperature = its hottest square.
+    // (Engineers care about the worst spot, not the average.)
+    public double ChipTemperature(Chip chip)
+    {
+        double max = double.MinValue;
+        for (int x = chip.X; x < chip.X + chip.Width; x++)
+            for (int y = chip.Y; y < chip.Y + chip.Height; y++)
+                max = Math.Max(max, Temperature[x, y]);
+        return max;
+    }
+
     // NEW: insulated edges. If we ask for a square off the board,
     // clamp to the nearest real square. So at the edge, the "missing
     // neighbor" has the same temp as me, meaning no heat flows out the side.

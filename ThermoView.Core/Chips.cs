@@ -13,4 +13,12 @@ public record Chip(
     // Is square (x, y) underneath this chip?
     public bool Covers(int x, int y) =>
         x >= X && x < X + Width && y >= Y && y < Y + Height;
+
+    // Do two chips share any square?
+    // Two rectangles overlap only if they overlap left-right AND up-down.
+    public bool Overlaps(Chip other) =>
+        X < other.X + other.Width && other.X < X + Width &&
+        Y < other.Y + other.Height && other.Y < Y + Height;
+
+    public bool IsOverheating(double temperature) => temperature > MaxTemp;
 }
