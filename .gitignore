@@ -480,3 +480,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# ThermoView release zip (uploaded to GitHub Releases, not committed)
+ThermoView-win-x64.zip
